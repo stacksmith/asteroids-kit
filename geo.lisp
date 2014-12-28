@@ -42,62 +42,55 @@
 		    (* rad (cos angle)))))
        radpoints))
 
-;;
-;; Map the 'points' list to a new list, rotating by angle, and translating by pos.
-;; 
-;; Used by update routines to create display lists at proper position.
-;; 
-(defun map-points (points pos angle)
-  "rotate and translate points. No clipping."
-  (let ((c (cos angle))
-	(s (sin angle))) 
-    (map 'list
-	 (lambda (pt)
-	   (with-accessors ((xpt x) (ypt y)) pt
-	     (point :x (+ (x pos) (- (* c xpt) (* s ypt)))
-		    :y (+ (y pos) (+ (* s xpt) (* c ypt))))))
-	 points)))
+
+
 (defmacro progx (&body body) (declare (ignore body)))
 
-(defun map-ship (ship pos angle)
-  (let ((c (cos angle))
-	(s (sin angle)))
-    (loop for point in (template-of ship) 
-       for i from 0 to (1- (length (template-of ship))) do
-	 (let ((xpt (x point))
-	       (ypt (y point)))
-	   
-	   (progn (setf (cffi:mem-aref (impl-x-of ship) :short i) 
-			 (cast-to-int (+ (x pos) (- (* c xpt) (* s ypt))))
-			 (cffi:mem-aref (impl-y-of ship) :short i)
-			 (cast-to-int (+ (y pos) (+ (* s xpt) (* c ypt)))) )
-		  (progx (format t "map-ship #~A   ~A ~A~%" i 
-				  (cffi:mem-aref (impl-x-of ship) :short i)
-				  (cffi:mem-aref (impl-y-of ship) :short i)
-
-				  ))
-		  )
-	   ))))
 ;;-------------------------------------------------------------------
-;; O B J
+;; SDL-POLY
 ;;
-;; An obj is a basic displayable vector object consisting of:
-;; - a radius
-;; - a position '(x y)
-;; - a velocity
-;; - a template, at (0 0) position
-;; - points, usually the transformed template ready to render
+;; An obj is a basic drawable vector polygon
+;; - a template, at (0 0) position, a list of point pairs
+;; - arrays of x and y coordinates for SDL
+;; - point count
+
 (defclass sdl-poly ()
   ((template :initform nil :accessor template-of)
    (impl-x :accessor impl-x-of)
    (impl-y :accessor impl-y-of)
    (point-cnt :accessor point-cnt-of)))
 
+;; 
+(defun map-sdl-poly (sdlpoly pos angle)
+"Map an sdl-poly object by translating and rotating its template. Store results into cffi-array"
+  (let ((c (cos angle))
+	(s (sin angle)))
+    (loop for point in (template-of sdlpoly) 
+       for i from 0 to (1- (point-cnt-of sdlpoly)) do
+	 (let ((xpt (x point))
+	       (ypt (y point)))
+	   (progn (setf (cffi:mem-aref (impl-x-of sdlpoly) :short i) 
+			(cast-to-int (+ (x pos) (- (* c xpt) (* s ypt))))
+			(cffi:mem-aref (impl-y-of sdlpoly) :short i)
+			(cast-to-int (+ (y pos) (+ (* s xpt) (* c ypt)))) )
+		  (progx (format t "map-ship #~A   ~A ~A~%" i 
+				 (cffi:mem-aref (impl-x-of sdlpoly) :short i)
+				 (cffi:mem-aref (impl-y-of sdlpoly) :short i) ))
+		  )))))
+
+
+;;-------------------------------------------------------------------
+;; O B J
+;;
+;; An base class for a positioned object:
+;; - a position '(x y)
+;; - a velocity
+
 (defclass obj (sdl-poly)
-  ((radius   :initform 0.0 :initarg :radius :accessor radius-of)
-   (pos      :type simple-vector  :initform (vector (/ *screen-width* 2) (/ *screen-height* 2))
+  ((pos      :type simple-vector  :initform (vector (/ *screen-width* 2) (/ *screen-height* 2))
 	     :initarg :pos  :accessor pos-of)
    (velocity :initform (vector 0.0 0.0) :accessor velocity-of) ))
+
 
 
 (defmethod update ((it obj) ticks)
@@ -116,7 +109,7 @@
 ;;
 ;;
 (defclass ship (obj)
-  (
+  ((radius   :initform 0.0 :initarg :radius :accessor radius-of)
    (direction :initform 0.0 :initarg :direction :accessor direction-of)
    (thrust   :initform (vector 0.0 0.0) :accessor thrust-of)
    ))
@@ -167,18 +160,18 @@
   )
 
 ;;
-(defmethod render ((ship ship))
+(defmethod renderx ((sdl-poly sdl-poly))
   ;(print (pos-of ship))
   ;;(draw-polygon (points-of ship) :color *green*) ;this is the normal way to draw polygon,but
     ;;(lispbuilder-sdl::gfx-draw-polygon (points-of ship) :surface *default-display* :color *green* :aa nil)
-    (progn  (cffi:foreign-funcall-pointer (cffi:foreign-symbol-pointer "polygonColor" :library 'sdl-cffi::sdl-gfx)
-					  ()
-					  lispbuilder-sdl::surface-pointer *default-display*
-					  :pointer (impl-x-of ship)
-					  :pointer (impl-y-of ship)
-					  :uint32 (point-cnt-of ship)
-					  lispbuilder-sdl::return-packed-color *green*
-					  :int)) 
+  (cffi:foreign-funcall-pointer (cffi:foreign-symbol-pointer "polygonColor" :library 'sdl-cffi::sdl-gfx)
+					 ()
+					 lispbuilder-sdl::surface-pointer *default-display*
+					 :pointer (impl-x-of sdl-poly)
+					 :pointer (impl-y-of sdl-poly)
+					 :uint32 (point-cnt-of sdl-poly)
+					 lispbuilder-sdl::return-packed-color *green*
+					 :int) 
   )
 
 
@@ -241,7 +234,83 @@
 
 	     (clear-display *black*)
 	     (update-all)
-	     (render *ship*)
+	     (renderx *ship*)
 	     (update-display)
 	     )
       )))
+
+
+
+;;------------------------------------------------------------------------------
+;;------------------------------------------------------------------------------
+;; T E S T
+;; Invoke (test) for entire test.
+;; For interactive development, feel free to test-init, mess around, 
+;; call test-main, exit to REPL with escape, work some more...
+;; at the end, call test-uninit... 
+
+(defun test-init ()
+  "initialize systems and open window"
+  (init-sdl :flags 'nil)
+  (sdl:window 800 600 :title-caption "SDL-GLASS Test" :icon-caption "SDL-GLASS Test")
+  (setf (sdl:frame-rate) 30)
+  (initialize)
+)
+
+(defun test-work ()
+  "do something to fill the screen"
+    (update-display)
+)
+(defun test-main ()
+  "main loop - process events"
+  (with-events ()
+      (:quit-event () t)		;(shut-down *sound*)
+      
+      (:key-down-event (:key key)
+		       (case key
+			 (:sdl-key-escape (push-quit-event))
+			 (:sdl-key-a (setf *lr-map* (logior 1 *lr-map*)))		
+			 (:sdl-key-f (setf *lr-map* (logior 2 *lr-map*)))
+			 (:sdl-key-j (setf *is-thrusting* t) )
+			 ;;(:sdl-key-space (print (points-of *ship*)))
+			 )
+		       )
+
+      (:key-up-event (:key key) 
+		     (case key
+		       (:sdl-key-a (setf *lr-map* (logand 2 *lr-map*)))		
+		       (:sdl-key-f (setf *lr-map* (logand 1 *lr-map*)))
+		       (:sdl-key-j (setf *is-thrusting* nil) )))
+      
+					;(:key-up-event (:key key) (key-processor world key :down nil))
+      (:mouse-button-down-event (:x x :y y)
+				(format t "mouse:(~d,~d)" x y)
+				#+nil(if (pt-in-triangle
+					  (triangle-p1 *q*)
+					  (triangle-p2 *q*)
+					  (triangle-p3 *q*)
+					  (vector x y))
+					 (format t "---HIT---"))
+				)
+      (:idle () 
+	     ;;	       (print (sdl-get-ticks))
+
+	     (clear-display *black*)
+	     (update-all)
+	     (renderx *ship*)
+	     (update-display)
+	     )
+      )
+
+    )
+(defun test-uninit ()
+  "uninit and close window"
+  (sdl:push-quit-event)
+  (close-audio)
+  (quit-sdl :flags 'nil))
+
+(defun test ()
+  (test-init)
+  (test-work)
+  (test-main)
+  (test-uninit))
