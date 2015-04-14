@@ -73,7 +73,8 @@
 			(cast-to-int (+ (x pos) (- (* c xpt) (* s ypt))))
 			(cffi:mem-aref (impl-y-of sdlpoly) :short i)
 			(cast-to-int (+ (y pos) (+ (* s xpt) (* c ypt)))) )
-		  (progx (format t "map-ship #~A   ~A ~A~%" i 
+	
+		#+nil  (progx (format t "map-ship #~A   ~A ~A~%" i 
 				 (cffi:mem-aref (impl-x-of sdlpoly) :short i)
 				 (cffi:mem-aref (impl-y-of sdlpoly) :short i) ))
 		  )))))
@@ -154,7 +155,7 @@
     (call-next-method) ;;takes care of position
     ;; Prepare points for collision detection and rendering 
     
-    (map-ship ship (pos-of ship) dir)
+    (map-sdl-poly ship (pos-of ship) dir)
     ;; (print (points-of ship))
     )
   )
