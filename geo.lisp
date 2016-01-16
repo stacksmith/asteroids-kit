@@ -94,16 +94,15 @@
 
 
 (defmethod update ((it obj) ticks)
-  (if it
-      (let ((pos (pos-of it))
-	    (velo (velocity-of it)))
-	;;adjust position based on velocity and ticks
-	(setf (x pos) 
-	      (mod (+ (x pos) (* ticks (x velo) ))
-		   *screen-width*))
-	(setf (y pos) 
-	      (mod (+ (y pos) (* ticks (y velo) ))
-		   *screen-height*)))))
+  (let ((pos (pos-of it))
+	(velo (velocity-of it)))
+    ;;adjust position based on velocity and ticks
+    (setf (x pos) 
+	  (mod (+ (x pos) (* ticks (x velo) ))
+	       *screen-width*))
+    (setf (y pos) 
+	  (mod (+ (y pos) (* ticks (y velo) ))
+	       *screen-height*))))
 
 ;;-------------------------------------------------------------------
 ;; S H I P
@@ -134,31 +133,30 @@
 
 
 (defmethod update :around ((ship ship) ticks)
-  (if ship
-      (let ((velo (velocity-of ship))
-	    (dir (direction-of ship))
-	    (thrust (thrust-of ship)))
-	;; Adjust rotation
-	(setf (direction-of ship) 
-	      (mod (+ dir (* 0.005 ticks (elt '(0 -1 1 0) *lr-map*)))
-		   +2pi+))
-	;; Adjust thrust
-	(with-accessors ((xt x) (yt y)) thrust
-	  (if *is-thrusting*
-	      (setf xt (- 0.0 (* *thrust-factor* (sin dir)))
-		    yt (* *thrust-factor* (cos dir)))
-	      (setf xt 0.0
-		    yt 0.0))
-	  ;; Adjust velocity
-	  (with-accessors ((xv x) (yv y)) velo
-	    (setf xv (* *friction* (+ xt xv))
-		  yv (* *friction* (+ yt yv)))))
-	(call-next-method) ;;takes care of position
-	;; Prepare points for collision detection and rendering 
-	
-	(map-sdl-poly ship (pos-of ship) dir)
-	;; (print (points-of ship))
-	))
+  (let ((velo (velocity-of ship))
+	(dir (direction-of ship))
+	(thrust (thrust-of ship)))
+    ;; Adjust rotation
+    (setf (direction-of ship) 
+	  (mod (+ dir (* 0.005 ticks (elt '(0 -1 1 0) *lr-map*)))
+	       +2pi+))
+    ;; Adjust thrust
+    (with-accessors ((xt x) (yt y)) thrust
+      (if *is-thrusting*
+	  (setf xt (- 0.0 (* *thrust-factor* (sin dir)))
+		yt (* *thrust-factor* (cos dir)))
+	  (setf xt 0.0
+		yt 0.0))
+      ;; Adjust velocity
+      (with-accessors ((xv x) (yv y)) velo
+	(setf xv (* *friction* (+ xt xv))
+	      yv (* *friction* (+ yt yv)))))
+    (call-next-method) ;;takes care of position
+    ;; Prepare points for collision detection and rendering 
+    
+    (map-sdl-poly ship (pos-of ship) dir)
+    ;; (print (points-of ship))
+    )
   )
 
 ;;
@@ -180,8 +178,7 @@
 (defun update-all ()
   (let* ((oldticks (shiftf *ticks* (sdl-get-ticks)))
 	 (ticks (- *ticks* oldticks)))
-    (if *ship*
-	(update *ship* ticks ))
+    (update *ship* ticks )
     ;(print ticks)
 
     )
@@ -237,8 +234,8 @@
 
 	     (clear-display *black*)
 	     (update-all)
-	     (if *ship*
-		 (renderx *ship*))
+	     
+	     (renderx *ship*)
 	     (update-display)
 	     )
       )))
@@ -256,7 +253,7 @@
 (defun test-init ()
   "initialize systems and open window"
   (init-sdl :flags 'nil)
-  (sdl:window 800 600 :title-caption "SDL-GLASS Test" :icon-caption "SDL-GLASS Test")
+  (sdl:window 800 600 :title-caption "Asteroids-kit" :icon-caption "Asteroids-kit")
   (setf (sdl:frame-rate) 30)
   (setf *ship* (make-instance 'ship))
 
@@ -303,8 +300,8 @@
 
 	     (clear-display *black*)
 	     (update-all)
-	     (if *ship*
-		 (renderx *ship*))
+	     
+	     (renderx *ship*)
 	     (update-display)
 	     )
       )
